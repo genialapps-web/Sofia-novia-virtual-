@@ -335,7 +335,7 @@
           ultimaActualizacion: firebase.firestore.FieldValue.serverTimestamp()
         };
 
-        // Solo agregamos la imagen si se subió una nueva
+// Solo agregamos la imagen si se subió una nueva
          if(urlPerfil) datosAGuardar.fotoPerfilSofia = urlPerfil;
          else datosAGuardar.fotoPerfilSofia = firebase.firestore.FieldValue.delete();
          if(urlFondo) datosAGuardar.fondoChatSofia = urlFondo;
