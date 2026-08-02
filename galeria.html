@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Galería - Mi Amor Virtual</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+  
+  <!-- SCRIPTS DE FIREBASE -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+  
+  <!-- ARCHIVO DE CONFIGURACIÓN SEGURA -->
+  <script src="config.js"></script>
+  
+  <style>
+    body { background-color: #ffffff; }
+    .glass { background: rgba(255,255,255,0.95); backdrop-filter: blur(10px); }
+    .contenido-bloqueado { cursor: pointer; }
+  </style>
+</head>
+<body class="text-slate-800 min-h-screen flex flex-col font-sans pb-20">
+
+  <header class="glass sticky top-0 z-20 border-b border-slate-200 px-4 py-3 shadow-sm">
+    <div class="max-w-md mx-auto text-center">
+      <div id="contador-dias" class="bg-rose-50 border border-rose-200 rounded-full py-1.5 px-4 text-xs font-semibold text-rose-700">Cargando... 🥰</div>
+    </div>
+  </header>
+
+  <!-- SECCIÓN: GALERÍA -->
+  <main class="max-w-md mx-auto w-full flex-1 flex flex-col p-4 bg-white py-6">
+    <div class="text-center mb-6">
+      <h2 class="text-xl font-bold text-slate-800">Nuestros Recuerdos</h2>
+      <p class="text-xs text-slate-500 mt-1">Fotos y audios especiales para ti</p>
+    </div>
+
+    <div id="contenedor-galeria" class="grid grid-cols-2 gap-4">
+      <p class="col-span-2 text-center text-slate-500 py-8">Cargando tus recuerdos...</p>
+    </div>
+  </main>
+
+  <!-- NAVEGACIÓN INFERIOR (Activo: Galería) -->
+  <nav class="fixed bottom-0 left-0 right-0 glass border-t border-slate-200 py-3 z-20">
+    <div class="max-w-md mx-auto flex justify-around text-xs text-slate-400 font-medium">
+      <a href="index.html" class="flex flex-col items-center gap-1 w-16 hover:text-slate-600"><i class="fas fa-comments text-xl mb-0.5"></i> Chat</a>
+      <a href="galeria.html" class="text-rose-500 flex flex-col items-center gap-1 w-16"><i class="fas fa-images text-xl mb-0.5"></i> Galería</a>
+      <a href="regalos.html" class="flex flex-col items-center gap-1 w-16 hover:text-slate-600"><i class="fas fa-gift text-xl mb-0.5"></i> Regalos</a>
+      <a href="tienda.html" class="flex flex-col items-center gap-1 w-16 hover:text-slate-600"><i class="fas fa-store text-xl mb-0.5"></i> Tienda</a>
+      <a href="perfil.html" class="flex flex-col items-center gap-1 w-16 hover:text-slate-600"><i class="fas fa-user text-xl mb-0.5"></i> Perfil</a>
+    </div>
+  </nav>
+
+  <script>
+    let db, auth, userId, configGlobal = {};
+
+    async function iniciarPagina() {
+      // Inicializar Firebase
+      const app = firebase.initializeApp(APP_CONFIG.firebase);
+      db = firebase.firestore();
+      auth = firebase.auth();
+
+      // Obtener usuario actual
+      userId = localStorage.getItem('firebase_user_id');
+      if (!userId) {
+        const cred = await auth.signInAnonymously();
+        userId = cred.user.uid;
+        localStorage.setItem('firebase_user_id', userId);
+      }
+
+      // Cargar configuración global
+      await cargarConfiguracion();
+      // Cargar días juntos
+      await cargarContadorDias();
+      // Cargar la galería
+      await cargarGaleria();
+    }
+
+    async function cargarConfiguracion() {
+      try {
+        const doc = await db.collection('configuracion').doc('general').get();
+        configGlobal = doc.exists ? { ...APP_CONFIG, ...doc.data() } : APP_CONFIG;
+      } catch (e) {
+        console.error("Error cargando configuración:", e);
+        configGlobal = APP_CONFIG;
+      }
+    }
+
+    async function cargarContadorDias() {
+      try {
+        const docUsuario = await db.collection('usuarios').doc(userId).get();
+        if (docUsuario.exists && docUsuario.data().fechaInicio) {
+          const fechaInicio = docUsuario.data().fechaInicio.toDate();
+          const hoy = new Date();
+          const dias = Math.ceil((hoy - fechaInicio) / (1000 * 60 * 60 * 24));
+          document.getElementById('contador-dias').textContent = `Juntos desde el ${fechaInicio.toLocaleDateString()} llevamos ${dias} día${dias !== 1 ? 's' : ''} 🥰`;
+        } else {
+          document.getElementById('contador-dias').textContent = "Juntos desde hoy 🥰";
+          await db.collection('usuarios').doc(userId).set({
+            fechaInicio: firebase.firestore.FieldValue.serverTimestamp()
+          }, { merge: true });
+        }
+      } catch (e) {
+        console.error("Error con el contador:", e);
+        document.getElementById('contador-dias').textContent = "Juntos desde hoy 🥰";
+      }
+    }
+
+    async function cargarGaleria() {
+      const contenedor = document.getElementById('contenedor-galeria');
+      contenedor.innerHTML = '';
+
+      try {
+        // Verificar si es usuario premium
+        const docUsuario = await db.collection('usuarios').doc(userId).get();
+        const esPremium = docUsuario.exists && docUsuario.data().premio === true;
+
+        // Traer contenido de la galería
+        const fotos = await db.collection('galeria').orderBy('fecha', 'desc').get();
+
+        if (fotos.empty) {
+          contenedor.innerHTML = `<p class="col-span-2 text-center text-slate-500 py-8">Aún no hay recuerdos, pronto te compartiré los primeros 💖</p>`;
+          return;
+        }
+
+        fotos.forEach(foto => {
+          const datos = foto.data();
+          const tarjeta = document.createElement('div');
+          tarjeta.className = datos.exclusivo && !esPremium 
+            ? 'relative rounded-xl overflow-hidden shadow-sm border border-slate-100 bg-slate-900 group contenido-bloqueado'
+            : 'rounded-xl overflow-hidden shadow-sm border border-slate-100 bg-white';
+
+          if (datos.exclusivo && !esPremium) {
+            tarjeta.innerHTML = `
+              <img src="${datos.urlImagen}" class="w-full h-40 object-cover filter blur-lg opacity-60">
+              <div class="absolute inset-0 flex flex-col items-center justify-center p-2 text-center">
+                <i class="fas fa-lock text-white text-2xl mb-2 shadow-sm"></i>
+                <span class="text-xs text-white font-medium bg-rose-500/90 px-3 py-1 rounded-full">Contenido Exclusivo</span>
+              </div>
+            `;
+            tarjeta.onclick = () => alert('✨ Esta foto es para quienes están conmigo en Premium. Activa tu suscripción para verla y muchas más 💖');
+          } else {
+            tarjeta.innerHTML = `
+              <img src="${datos.urlImagen}" class="w-full h-40 object-cover" loading="lazy">
+              <p class="text-xs p-3 text-center text-slate-600 font-medium">${datos.descripcion}</p>
+            `;
+          }
+
+          contenedor.appendChild(tarjeta);
+        });
+
+      } catch (error) {
+        console.error("Error cargando galería:", error);
+        contenedor.innerHTML = `<p class="col-span-2 text-center text-red-500 py-8">Hubo un problema al cargar las fotos, intenta de nuevo más tarde</p>`;
+      }
+    }
+
+    // Iniciar todo al cargar la página
+    document.addEventListener('DOMContentLoaded', iniciarPagina);
+  </script>
+
+</body>
+</html>

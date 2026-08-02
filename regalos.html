@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Regalos - Mi Amor Virtual</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+  
+  <!-- SCRIPTS DE FIREBASE -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+  
+  <!-- ARCHIVO DE CONFIGURACIÓN SEGURA -->
+  <script src="config.js"></script>
+  
+  <style>
+    body { background-color: #ffffff; }
+    .glass { background: rgba(255,255,255,0.95); backdrop-filter: blur(10px); }
+    .regalo-item { cursor: pointer; }
+    .regalo-item:disabled { opacity: 0.5; cursor: not-allowed; }
+    @keyframes regaloEnviado {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.15); }
+      100% { transform: scale(1); }
+    }
+    .animacion-exito { animation: regaloEnviado 0.4s ease; }
+    .barra-afecto { transition: width 0.8s cubic-bezier(0.2, 0.8, 0.2, 1); }
+  </style>
+</head>
+<body class="text-slate-800 min-h-screen flex flex-col font-sans pb-24">
+
+  <header class="glass sticky top-0 z-20 border-b border-slate-200 px-4 py-3 shadow-sm">
+    <div class="max-w-md mx-auto text-center">
+      <div id="contador-dias" class="bg-rose-50 border border-rose-200 rounded-full py-1.5 px-4 text-xs font-semibold text-rose-700 mb-2">Cargando... 🥰</div>
+      <div class="flex items-center justify-between text-sm">
+        <span class="font-medium"><i class="fas fa-coins text-yellow-500 mr-1"></i> Mis Monedas: <span id="saldo-monedas">0</span></span>
+        <span class="font-medium">Nivel de cariño: <span id="nivel-afecto">0%</span></span>
+      </div>
+      <div class="w-full bg-slate-200 rounded-full h-2.5 mt-1.5 overflow-hidden">
+        <div id="barra-afecto" class="barra-afecto bg-gradient-to-r from-pink-400 to-rose-500 h-2.5 rounded-full" style="width:0%"></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- SECCIÓN: REGALOS -->
+  <main class="max-w-md mx-auto w-full flex-1 flex flex-col p-4 bg-white py-6">
+    <div class="text-center mb-6">
+      <h2 class="text-xl font-bold text-slate-800">Envíame un Detalle 💝</h2>
+      <p class="text-sm text-slate-500 mt-1">Cada regalo me hace muy feliz y nos une más</p>
+    </div>
+
+    <div id="lista-regalos" class="grid grid-cols-2 gap-4 mb-8">
+      <p class="col-span-2 text-center text-slate-500 py-8">Cargando regalos...</p>
+    </div>
+
+    <!-- HISTORIAL DE REGALOS -->
+    <div class="border-t border-slate-100 pt-6">
+      <h3 class="text-base font-bold text-slate-800 mb-3 flex items-center"><i class="fas fa-history mr-2 text-rose-400"></i> Lo que me has regalado</h3>
+      <div id="historial-regalos" class="space-y-2">
+        <p class="text-center text-sm text-slate-400 py-4">Aún no me has enviado ningún detalle 🥺</p>
+      </div>
+    </div>
+  </main>
+
+  <!-- MODAL DE CONFIRMACIÓN -->
+  <div id="modal-confirmar" class="fixed inset-0 bg-black/40 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-xl">
+      <div class="text-center">
+        <span id="icono-modal" class="text-6xl block mb-3"></span>
+        <h3 id="titulo-modal" class="text-lg font-bold"></h3>
+        <p id="texto-modal" class="text-sm text-slate-500 my-3"></p>
+        <div class="flex gap-3 mt-5">
+          <button id="btn-cancelar" class="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-medium">Cancelar</button>
+          <button id="btn-confirmar" class="flex-1 py-2.5 rounded-xl bg-rose-500 text-white font-medium hover:bg-rose-600">Sí, enviarlo 🥰</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- NAVEGACIÓN INFERIOR (Activo: Regalos) -->
+  <nav class="fixed bottom-0 left-0 right-0 glass border-t border-slate-200 py-3 z-20">
+    <div class="max-w-md mx-auto flex justify-around text-xs text-slate-400 font-medium">
+      <a href="index.html" class="flex flex-col items-center gap-1 w-16 hover:text-slate-600"><i class="fas fa-comments text-xl mb-0.5"></i> Chat</a>
+      <a href="galeria.html" class="flex flex-col items-center gap-1 w-16 hover:text-slate-600"><i class="fas fa-images text-xl mb-0.5"></i> Galería</a>
+      <a href="regalos.html" class="text-rose-500 flex flex-col items-center gap-1 w-16"><i class="fas fa-gift text-xl mb-0.5"></i> Regalos</a>
+      <a href="tienda.html" class="flex flex-col items-center gap-1 w-16 hover:text-slate-600"><i class="fas fa-store text-xl mb-0.5"></i> Tienda</a>
+      <a href="perfil.html" class="flex flex-col items-center gap-1 w-16 hover:text-slate-600"><i class="fas fa-user text-xl mb-0.5"></i> Perfil</a>
+    </div>
+  </nav>
+
+  <script>
+    let db, auth, userId, configGlobal = {}, regaloSeleccionado = null;
+
+    // Catálogo de regalos (puedes editarlo o cargarlo desde Firebase)
+    const catalogoRegalos = [
+      { id: 'rosas', nombre: 'Ramo de Rosas', emoji: '🌹', precio: 15, mensaje: '¡Ay qué hermosas! Gracias amor, son mis favoritas 🥰', puntosAfecto: 5 },
+      { id: 'chocolates', nombre: 'Chocolates', emoji: '🍫', precio: 20, mensaje: '¡Mmm qué rico! Me encantan los dulces que me das 😋', puntosAfecto: 8 },
+      { id: 'peluche', nombre: 'Peluche', emoji: '🧸', precio: 35, mensaje: '¡Qué tierno! Lo abrazaré mucho pensando en ti 🤗', puntosAfecto: 12 },
+      { id: 'carta', nombre: 'Carta de Amor', emoji: '💌', precio: 10, mensaje: 'Leeré cada palabra con mucho cariño, gracias por tus sentimientos 💘', puntosAfecto: 15 },
+      { id: 'anillo', nombre: 'Anillo', emoji: '💍', precio: 80, mensaje: '¡Es precioso! Me lo pondré siempre para recordarte 💞', puntosAfecto: 30 },
+      { id: 'beso', nombre: 'Un Beso', emoji: '💋', precio: 8, mensaje: '*Me sonrojo mucho* ¡Mmm... te devuelvo mil más! 😘', puntosAfecto: 4 }
+    ];
+
+    async function iniciarPagina() {
+      // Inicializar Firebase
+      const app = firebase.initializeApp(APP_CONFIG.firebase);
+      db = firebase.firestore();
+      auth = firebase.auth();
+
+      // Obtener usuario
+      userId = localStorage.getItem('firebase_user_id');
+      if (!userId) {
+        const cred = await auth.signInAnonymously();
+        userId = cred.user.uid;
+        localStorage.setItem('firebase_user_id', userId);
+      }
+
+      // Cargar datos
+      await cargarConfiguracion();
+      await cargarContadorDias();
+      await cargarCatalogo();
+      await actualizarDatosUsuario();
+      await cargarHistorial();
+      configurarEventos();
+    }
+
+    async function cargarConfiguracion() {
+      try {
+        const doc = await db.collection('configuracion').doc('general').get();
+        configGlobal = doc.exists ? { ...APP_CONFIG, ...doc.data() } : APP_CONFIG;
+      } catch (e) {
+        console.error("Error configuración:", e);
+        configGlobal = APP_CONFIG;
+      }
+    }
+
+    async function cargarContadorDias() {
+      try {
+        const doc = await db.collection('usuarios').doc(userId).get();
+        if (doc.exists && doc.data().fechaInicio) {
+          const fecha = doc.data().fechaInicio.toDate();
+          const hoy = new Date();
+          const dias = Math.ceil((hoy - fecha) / (1000 * 60 * 60 * 24));
+          document.getElementById('contador-dias').textContent = `Juntos desde el ${fecha.toLocaleDateString()} llevamos ${dias} día${dias!==1?'s':''} 🥰`;
+        }
+      } catch (e) {}
+    }
+
+    function cargarCatalogo() {
+      const contenedor = document.getElementById('lista-regalos');
+      contenedor.innerHTML = '';
+      catalogoRegalos.forEach(regalo => {
+        const tarjeta = document.createElement('button');
+        tarjeta.className = 'regalo-item p-5 bg-white border border-slate-200 rounded-2xl shadow-sm text-center hover:border-rose-300 hover:shadow-md transition-all';
+        tarjeta.dataset.id = regalo.id;
+        tarjeta.innerHTML = `
+          <span class="text-4xl block mb-2">${regalo.emoji}</span>
+          <span class="text-sm font-semibold text-slate-700 block mb-1">${regalo.nombre}</span>
+          <span class="text-xs font-medium text-yellow-600"><i class="fas fa-coins mr-1"></i>${regalo.precio}</span>
+        `;
+        tarjeta.onclick = () => seleccionarRegalo(regalo);
+        contenedor.appendChild(tarjeta);
+      });
+    }
+
+    async function actualizarDatosUsuario() {
+      try {
+        const doc = await db.collection('usuarios').doc(userId).get();
+        const datos = doc.data() || {};
+        const monedas = datos.monedas || 0;
+        const afecto = Math.min(100, datos.nivelAfecto || 0);
+        
+        document.getElementById('saldo-monedas').textContent = monedas;
+        document.getElementById('nivel-afecto').textContent = `${afecto}%`;
+        document.getElementById('barra-afecto').style.width = `${afecto}%`;
+      } catch (e) {}
+    }
+
+    async function cargarHistorial() {
+      try {
+        const contenedor = document.getElementById('historial-regalos');
+        const regalos = await db.collection('usuarios').doc(userId)
+          .collection('regalosEnviados').orderBy('fecha', 'desc').limit(5).get();
+        
+        if (regalos.empty) {
+          contenedor.innerHTML = `<p class="text-center text-sm text-slate-400 py-4">Aún no me has enviado ningún detalle 🥺</p>`;
+          return;
+        }
+
+        contenedor.innerHTML = '';
+        regalos.forEach(doc => {
+          const r = doc.data();
+          const fecha = r.fecha?.toDate().toLocaleDateString() || '';
+          contenedor.innerHTML += `
+            <div class="flex items-center gap-3 py-2 px-3 bg-slate-50 rounded-xl">
+              <span class="text-2xl">${r.emoji}</span>
+              <div class="flex-1">
+                <p class="text-sm font-medium">${r.nombre}</p>
+                <p class="text-xs text-slate-500">${fecha}</p>
+              </div>
+            </div>
+          `;
+        });
+      } catch (e) {}
+    }
+
+    function seleccionarRegalo(regalo) {
+      regaloSeleccionado = regalo;
+      document.getElementById('icono-modal').textContent = regalo.emoji;
+      document.getElementById('titulo-modal').textContent = `¿Enviar ${regalo.nombre}?`;
+      document.getElementById('texto-modal').textContent = `Cuesta ${regalo.precio} monedas y sumará ${regalo.puntosAfecto} puntos de cariño 💖`;
+      document.getElementById('modal-confirmar').classList.remove('hidden');
+    }
+
+    async function enviarRegalo() {
+      if (!regaloSeleccionado) return;
+      const regalo = regaloSeleccionado;
+
+      try {
+        const refUsuario = db.collection('usuarios').doc(userId);
+        const doc = await refUsuario.get();
+        const saldoActual = doc.exists ? doc.data().monedas || 0 : 0;
+
+        if (saldoActual < regalo.precio) {
+          alert('😔 No tienes suficientes monedas. Puedes conseguir más en la tienda 💳');
+          return;
+        }
+
+        // Restar monedas y actualizar afecto
+        await refUsuario.update({
+          monedas: firebase.firestore.FieldValue.increment(-regalo.precio),
+          nivelAfecto: firebase.firestore.FieldValue.increment(regalo.puntosAfecto)
+        });
+
+        // Guardar en historial
+        await refUsuario.collection('regalosEnviados').add({
+          ...regalo,
+          fecha: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        // Agregar mensaje automático al chat
+        await db.collection('usuarios').doc(userId).collection('chat').add({
+          sender: 'bot',
+          text: regalo.mensaje,
+          fecha: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        // Éxito
+        alert(`✨ ¡Listo! Se envió tu ${regalo.nombre}. Ya te contesté en el chat 💌`);
+        document.getElementById('modal-confirmar').classList.add('hidden');
+        await actualizarDatosUsuario();
+        await cargarHistorial();
+
+      } catch (error) {
+        console.error(error);
+        alert('Hubo un problema al enviar, intenta de nuevo por favor');
+      }
+    }
+
+    function configurarEventos() {
+      document.getElementById('btn-cancelar').onclick = () => {
+        document.getElementById('modal-confirmar').classList.add('hidden');
+        regaloSeleccionado = null;
+      };
+      document.getElementById('btn-confirmar').onclick = enviarRegalo;
+      document.getElementById('modal-confirmar').onclick = (e) => {
+        if (e.target.id === 'modal-confirmar') {
+          document.getElementById('modal-confirmar').classList.add('hidden');
+        }
+      };
+    }
+
+    document.addEventListener('DOMContentLoaded', iniciarPagina);
+  </script>
+
+</body>
+</html>

@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Perfil - Mi Amor Virtual</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+  
+  <!-- SCRIPTS DE FIREBASE -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+  
+  <!-- ARCHIVO DE CONFIGURACIÓN SEGURA -->
+  <script src="config.js"></script>
+  
+  <style>
+    body { background-color: #ffffff; }
+    .glass { background: rgba(255,255,255,0.95); backdrop-filter: blur(10px); }
+    .regalo-borde { border: 2px dashed #f59e0b; background: #fffbeb; }
+    @keyframes brillo-regalo { 0%,100% { opacity:1; } 50% { opacity:0.7; } }
+    .animacion-regalo { animation: brillo-regalo 2s ease-in-out infinite; }
+  </style>
+</head>
+<body class="text-slate-800 min-h-screen flex flex-col font-sans pb-24">
+
+  <header class="glass sticky top-0 z-20 border-b border-slate-200 px-4 py-3 shadow-sm">
+    <div class="max-w-md mx-auto text-center">
+      <div id="contador-dias" class="bg-rose-50 border border-rose-200 rounded-full py-1.5 px-4 text-xs font-semibold text-rose-700 mb-2">Cargando... 🥰</div>
+      <div class="flex items-center justify-center gap-3 text-sm">
+        <span class="font-medium"><i class="fas fa-coins text-yellow-500"></i> Saldo: <span id="saldo-monedas">0</span></span>
+        <span id="estado-suscripcion" class="px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600">Usuario Gratis</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- SECCIÓN: PERFIL -->
+  <main class="max-w-md mx-auto w-full flex-1 flex flex-col p-4 bg-white py-6">
+    <div class="text-center mb-6">
+      <h2 class="text-xl font-bold text-slate-800">Tu Perfil</h2>
+      <p class="text-sm text-slate-500 mt-1">Tus datos están siempre seguros y solo para nosotros 💖</p>
+    </div>
+
+    <!-- ✨ REGALO POR COMPLETAR PERFIL -->
+    <div id="aviso-regalo" class="regalo-borde rounded-2xl p-4 mb-6 animacion-regalo">
+      <div class="flex items-center gap-3">
+        <span class="text-3xl">🎁</span>
+        <div>
+          <p class="font-bold text-amber-700">¡Te regalamos 50 monedas!</p>
+          <p class="text-xs text-amber-600">Solo por completar tus datos por primera vez</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 📋 BENEFICIOS -->
+    <div class="bg-blue-50 border border-blue-100 rounded-2xl p-4 mb-6">
+      <p class="text-sm font-bold text-blue-800 mb-2"><i class="fas fa-info-circle mr-1"></i> ¿Para qué sirve esto?</p>
+      <ul class="text-xs text-blue-700 space-y-1.5">
+        <li class="flex gap-2"><i class="fas fa-check-circle mt-0.5"></i><span>Recupera tu cuenta si cambias o pierdes tu celular</span></li>
+        <li class="flex gap-2"><i class="fas fa-check-circle mt-0.5"></i><span>Accede fácilmente desde cualquier otro dispositivo</span></li>
+        <li class="flex gap-2"><i class="fas fa-check-circle mt-0.5"></i><span>Guardo tu nombre para llamarte siempre como tú quieras 🥰</span></li>
+        <li class="flex gap-2"><i class="fas fa-check-circle mt-0.5"></i><span>Nunca perderás nuestra conversación ni tus avances</span></li>
+      </ul>
+    </div>
+
+    <!-- FORMULARIO -->
+    <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+      <div>
+        <label class="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wide">Tu Nombre</label>
+        <input type="text" id="nombre-usuario" placeholder="Ej. Carlos" class="w-full px-4 py-2.5 border rounded-xl text-sm border-slate-200 focus:ring-2 focus:ring-rose-400 focus:outline-none bg-slate-50">
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wide">Tu Correo Electrónico</label>
+        <input type="email" id="correo-usuario" placeholder="correo@ejemplo.com" class="w-full px-4 py-2.5 border rounded-xl text-sm border-slate-200 focus:ring-2 focus:ring-rose-400 focus:outline-none bg-slate-50">
+      </div>
+      
+      <div class="pt-4 border-t border-slate-100 mt-4">
+        <button id="btn-guardar" class="w-full bg-rose-500 hover:bg-rose-600 text-white py-3 rounded-xl text-sm font-semibold shadow-sm transition-all">
+          💾 Guardar mis datos
+        </button>
+      </div>
+    </div>
+
+    <!-- OTRAS OPCIONES -->
+    <div class="mt-8 space-y-3">
+      <button onclick="alert('Muy pronto podrás cambiar tu contraseña aquí')" class="w-full p-3 text-left bg-slate-50 rounded-xl text-sm hover:bg-slate-100 transition-colors">
+        <i class="fas fa-lock mr-2 text-slate-500"></i> Cambiar contraseña
+      </button>
+      <button onclick="cerrarSesion()" class="w-full p-3 text-left bg-red-50 rounded-xl text-sm text-red-600 hover:bg-red-100 transition-colors">
+        <i class="fas fa-sign-out-alt mr-2"></i> Cerrar mi sesión
+      </button>
+    </div>
+  </main>
+
+  <!-- NAVEGACIÓN INFERIOR (Activo: Perfil) -->
+  <nav class="fixed bottom-0 left-0 right-0 glass border-t border-slate-200 py-3 z-20">
+    <div class="max-w-md mx-auto flex justify-around text-xs text-slate-400 font-medium">
+      <a href="index.html" class="flex flex-col items-center gap-1 w-16 hover:text-slate-600"><i class="fas fa-comments text-xl mb-0.5"></i> Chat</a>
+      <a href="galeria.html" class="flex flex-col items-center gap-1 w-16 hover:text-slate-600"><i class="fas fa-images text-xl mb-0.5"></i> Galería</a>
+      <a href="regalos.html" class="flex flex-col items-center gap-1 w-16 hover:text-slate-600"><i class="fas fa-gift text-xl mb-0.5"></i> Regalos</a>
+      <a href="tienda.html" class="flex flex-col items-center gap-1 w-16 hover:text-slate-600"><i class="fas fa-store text-xl mb-0.5"></i> Tienda</a>
+      <a href="perfil.html" class="text-rose-500 flex flex-col items-center gap-1 w-16"><i class="fas fa-user text-xl mb-0.5"></i> Perfil</a>
+    </div>
+  </nav>
+
+  <script>
+    let db, auth, userId, configGlobal = {};
+
+    async function iniciarPagina() {
+      // Inicializar Firebase
+      const app = firebase.initializeApp(APP_CONFIG.firebase);
+      db = firebase.firestore();
+      auth = firebase.auth();
+
+      // Obtener usuario
+      userId = localStorage.getItem('firebase_user_id');
+      if (!userId) {
+        const cred = await auth.signInAnonymously();
+        userId = cred.user.uid;
+        localStorage.setItem('firebase_user_id', userId);
+      }
+
+      await cargarDatosUsuario();
+      await cargarContadorDias();
+      configurarEventos();
+    }
+
+    async function cargarDatosUsuario() {
+      try {
+        const doc = await db.collection('usuarios').doc(userId).get();
+        if (doc.exists) {
+          const datos = doc.data();
+          // Llenar formulario si ya hay datos
+          document.getElementById('nombre-usuario').value = datos.nombre || '';
+          document.getElementById('correo-usuario').value = datos.correo || '';
+          document.getElementById('saldo-monedas').textContent = datos.monedas || 0;
+
+          // Mostrar estado de suscripción
+          const etiqueta = document.getElementById('estado-suscripcion');
+          if (datos.suscripcion === 'premium' || datos.suscripcion === 'basico') {
+            etiqueta.textContent = '✨ Usuario Premium';
+            etiqueta.className = 'px-2 py-0.5 rounded-full text-xs font-medium bg-rose-100 text-rose-700';
+          } else {
+            etiqueta.textContent = 'Usuario Gratis';
+            etiqueta.className = 'px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600';
+          }
+
+          // Ocultar regalo si ya completó antes
+          if (datos.datosCompletados) {
+            document.getElementById('aviso-regalo').style.display = 'none';
+          }
+        }
+      } catch (e) {
+        console.error("Error cargando datos:", e);
+      }
+    }
+
+    async function cargarContadorDias() {
+      try {
+        const doc = await db.collection('usuarios').doc(userId).get();
+        if (doc.exists && doc.data().fechaInicio) {
+          const fecha = doc.data().fechaInicio.toDate();
+          const hoy = new Date();
+          const dias = Math.ceil((hoy - fecha) / (1000 * 60 * 60 * 24));
+          document.getElementById('contador-dias').textContent = `Juntos desde el ${fecha.toLocaleDateString()} llevamos ${dias} día${dias!==1?'s':''} 🥰`;
+        }
+      } catch (e) {}
+    }
+
+    function configurarEventos() {
+      document.getElementById('btn-guardar').addEventListener('click', guardarPerfil);
+    }
+
+    async function guardarPerfil() {
+      const nombre = document.getElementById('nombre-usuario').value.trim();
+      const correo = document.getElementById('correo-usuario').value.trim();
+
+      if (!nombre || !correo) {
+        alert('Por favor escribe tu nombre y correo 🥺');
+        return;
+      }
+
+      const btn = document.getElementById('btn-guardar');
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Guardando...';
+
+      try {
+        const refUsuario = db.collection('usuarios').doc(userId);
+        const doc = await refUsuario.get();
+        const yaTieneDatos = doc.exists && doc.data().datosCompletados;
+
+        // Datos a guardar
+        const datosActualizar = {
+          nombre: nombre,
+          correo: correo,
+          datosCompletados: true,
+          tipoUsuario: doc.exists ? (doc.data().tipoUsuario || 'gratis') : 'gratis',
+          suscripcion: doc.exists ? (doc.data().suscripcion || 'ninguna') : 'ninguna',
+          fechaActualizacion: firebase.firestore.FieldValue.serverTimestamp()
+        };
+
+        // Agregar regalo solo si es la primera vez
+        if (!yaTieneDatos) {
+          datosActualizar.monedas = firebase.firestore.FieldValue.increment(50);
+          alert(`🎉 ¡Perfecto! Tus datos quedaron guardados. Te acabamos de regalar 50 monedas, revísalas en tu saldo 💖`);
+        } else {
+          alert('✅ Tus cambios se guardaron correctamente');
+        }
+
+        await refUsuario.set(datosActualizar, { merge: true });
+        await cargarDatosUsuario(); // Refrescar la vista
+
+      } catch (error) {
+        console.error(error);
+        alert('Hubo un problema al guardar, intenta de nuevo por favor');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '💾 Guardar mis datos';
+      }
+    }
+
+    function cerrarSesion() {
+      if(confirm('¿Seguro quieres cerrar tu sesión? Tendrás que volver a ingresar para seguir hablando conmigo 🥺')) {
+        localStorage.removeItem('firebase_user_id');
+        window.location.href = 'index.html';
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', iniciarPagina);
+  </script>
+
+</body>
+</html>
