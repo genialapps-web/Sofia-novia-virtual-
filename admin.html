@@ -60,7 +60,7 @@
       </div>
     </div>
 
-    <!-- 🎨 CONFIGURACIÓN DEL PERSONAJE SOFÍA ✨ LO QUE PEDISTE -->
+    <!-- 🎨 CONFIGURACIÓN DEL PERSONAJE SOFÍA -->
     <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4">
       <h2 class="text-md font-bold text-slate-700 flex items-center gap-2">
         <i class="fas fa-heart text-rose-500"></i> Personalidad y Apariencia de Sofía
@@ -196,7 +196,8 @@
         </h2>
         <div class="space-y-3">
           <input type="text" id="cfg-cld-name" placeholder="Cloud Name" class="w-full px-3 py-2 border rounded-lg text-sm border-slate-300">
-          <input type="text" id="cfg-cld-preset" placeholder="Upload Preset" class="w-full px-3 py-2 border rounded-lg text-sm border-slate-300">
+          <input type="text" id="cfg-cld-preset" placeholder="Upload Preset (Sin firma)" class="w-full px-3 py-2 border rounded-lg text-sm border-slate-300" value="ml_default">
+          <p class="text-[11px] text-amber-600">⚠️ El preset debe estar marcado como "Sin firma / Unsigned" en tu cuenta de Cloudinary</p>
         </div>
         <button onclick="guardarConfiguracionCloudinary()" class="bg-rose-500 hover:bg-rose-600 text-white px-4 py-2 rounded-lg text-xs font-semibold shadow">Guardar Cloudinary</button>
       </div>
@@ -250,9 +251,10 @@
         if(d.nombreSofia) document.getElementById('sofia-nombre').value = d.nombreSofia;
         if(d.datosSofia) document.getElementById('sofia-datos').value = d.datosSofia;
         if(d.promptSofia) document.getElementById('sofia-prompt').value = d.promptSofia;
-        if(d.opacidadFondo) document.getElementById('sofia-opacidad').value = d.opacidadFondo;
-        document.getElementById('valor-opacidad').textContent = `${d.opacidadFondo || 80}%`;
-
+        if(d.opacidadFondo) {
+          document.getElementById('sofia-opacidad').value = d.opacidadFondo;
+          document.getElementById('valor-opacidad').textContent = `${d.opacidadFondo}%`;
+        }
         // Servicios
         if(d.apiKey) document.getElementById('cfg-api-key').value = d.apiKey;
         if(d.cloudinaryName) document.getElementById('cfg-cld-name').value = d.cloudinaryName;
@@ -263,155 +265,199 @@
         if(d.elevenStability) document.getElementById('cfg-eleven-stability').value = d.elevenStability;
         if(d.elevenSimilarity) document.getElementById('cfg-eleven-similarity').value = d.elevenSimilarity;
         if(d.elevenSpeed) document.getElementById('cfg-eleven-speed').value = d.elevenSpeed;
-      } catch (e) { console.log("Cargando por defecto"); }
+      } catch (e) { console.log("Cargando valores por defecto"); }
     }
 
     async function guardarDatosSofia() {
-      const cldName = document.getElementById('cfg-cld-name').value.trim() || APP_CONFIG.cloudinary.cloudName;
-      const cldPreset = document.getElementById('cfg-cld-preset').value.trim() || APP_CONFIG.cloudinary.uploadPreset;
+      // Primero leemos lo que tengas guardado o escribas ahorita
+      let cldName = document.getElementById('cfg-cld-name').value.trim();
+      let cldPreset = document.getElementById('cfg-cld-preset').value.trim();
+
+      // Si no hay nada en pantalla, intentamos tomar lo que ya estaba guardado
+      if(!cldName || !cldPreset){
+        try {
+          const doc = await docConfig.get();
+          if(doc.exists){
+            const d = doc.data();
+            cldName = cldName || d.cloudinaryName;
+            cldPreset = cldPreset || d.cloudinaryPreset;
+          }
+        } catch(e){}
+      }
+
+      // Si aun así no hay datos, no dejamos seguir
+      if(!cldName || !cldPreset){
+        alert("⚠️ Primero guarda los datos de Cloudinary en su sección para poder subir imágenes");
+        return;
+      }
+
       let urlPerfil = null, urlFondo = null;
 
       try {
-        // Subir fotos si se eligieron
+        // Subir foto de perfil si se eligió
         if(document.getElementById('sofia-foto-perfil').files[0]){
           const fd = new FormData();
           fd.append('file', document.getElementById('sofia-foto-perfil').files[0]);
           fd.append('upload_preset', cldPreset);
-          const res = await fetch(`https://api.cloudinary.com/v1_1/${cldName}/image/upload`, {method:'POST', body:fd});
-          urlPerfil = (await res.json()).secure_url;
+          
+          const res = await fetch(`https://api.cloudinary.com/v1_1/${cldName}/image/upload`, {
+            method: 'POST', body: fd
+          });
+
+          if(!res.ok) throw new Error("Revisa que el Upload Preset sea SIN FIRMA");
+          const datos = await res.json();
+          if(datos.error) throw new Error(datos.error.message);
+          urlPerfil = datos.secure_url;
         }
 
+        // Subir foto de fondo si se eligió
         if(document.getElementById('sofia-fondo-chat').files[0]){
           const fd = new FormData();
           fd.append('file', document.getElementById('sofia-fondo-chat').files[0]);
           fd.append('upload_preset', cldPreset);
-          const res = await fetch(`https://api.cloudinary.com/v1_1/${cldName}/image/upload`, {method:'POST', body:fd});
-          urlFondo = (await res.json()).secure_url;
+          
+          const res = await fetch(`https://api.cloudinary.com/v1_1/${cldName}/image/upload`, {
+            method: 'POST', body: fd
+          });
+
+          if(!res.ok) throw new Error("Revisa que el Upload Preset sea SIN FIRMA");
+          const datos = await res.json();
+          if(datos.error) throw new Error(datos.error.message);
+          urlFondo = datos.secure_url;
         }
 
-        // Guardar todo en Firestore
-        await docConfig.set({
+        // Guardar todo limpio en Firestore
+        const datosAGuardar = {
           nombreSofia: document.getElementById('sofia-nombre').value.trim(),
           datosSofia: document.getElementById('sofia-datos').value.trim(),
           promptSofia: document.getElementById('sofia-prompt').value.trim(),
-          fotoPerfilSofia: urlPerfil || firebase.firestore.FieldValue.delete(),
-          fondoChatSofia: urlFondo || firebase.firestore.FieldValue.delete(),
           opacidadFondo: parseInt(document.getElementById('sofia-opacidad').value),
           ultimaActualizacion: firebase.firestore.FieldValue.serverTimestamp()
-        }, {merge:true});
+        };
 
-        alert("✅ ¡Datos de Sofía guardados! Se verán así para todos");
-      } catch(e) { alert("❌ Error: "+e.message); }
-    }
-
-    async function calcularEstadisticas() {
-      try {
-        const snap = await db.collection('usuarios').get();
-        let total = snap.size, premium = 0, sumaDias = 0, totalMsgs = 0;
-
-        for(let u of snap.docs){
-          const d = u.data();
-          if(d.suscripcion && d.suscripcion !== 'ninguna') premium++;
-          if(d.fechaInicio) sumaDias += Math.floor((Date.now() - d.fechaInicio.toDate())/(86400000));
-          const c = await db.collection('usuarios').doc(u.id).collection('chat').count().get();
-          totalMsgs += c.data().count;
-        }
-
-        document.getElementById('stat-users').innerText = total;
-        document.getElementById('stat-premium').innerText = premium;
-        document.getElementById('stat-days').innerText = total ? Math.round(sumaDias/total) : 0;
-        document.getElementById('stat-msgs').innerText = totalMsgs;
-      } catch(e){}
-    }
-
-    async function guardarConfiguracionEleven(){
-      await docConfig.set({
-        elevenKey: document.getElementById('cfg-eleven-key').value.trim(),
-        elevenVoiceId: document.getElementById('cfg-eleven-voice').value.trim(),
-        elevenModel: document.getElementById('cfg-eleven-model').value,
-        elevenStability: parseFloat(document.getElementById('cfg-eleven-stability').value),
-        elevenSimilarity: parseFloat(document.getElementById('cfg-eleven-similarity').value),
-        elevenSpeed: parseFloat(document.getElementById('cfg-eleven-speed').value)
-      }, {merge:true});
-      alert("✅ Configuración de voz guardada");
-    }
-
-    async function guardarConfiguracionIA(){
-      await docConfig.set({apiKey: document.getElementById('cfg-api-key').value.trim()}, {merge:true});
-      alert("✅ Clave de IA guardada");
-    }
-
-    async function guardarConfiguracionCloudinary(){
-      await docConfig.set({
-        cloudinaryName: document.getElementById('cfg-cld-name').value.trim(),
-        cloudinaryPreset: document.getElementById('cfg-cld-preset').value.trim()
-      }, {merge:true});
-      alert("✅ Datos de Cloudinary guardados");
-    }
-
-    function guardarContrasenaAdmin(){
-      const nueva = document.getElementById('cfg-admin-pass').value.trim();
-      localStorage.setItem('admin_pass', nueva);
-      alert("Recuerda también cambiarla en tu archivo config.js ✅");
-    }
-
-    async function enviarATodos() {
-// Misma lógica mejorada que teníamos antes, adaptada a tus colecciones
-       const btn = document.getElementById('btn-enviar-todos');
-       const estado = document.getElementById('estado-envio');
-       estado.classList.remove('hidden');
-       
-       const texto = document.getElementById('mensaje-global').value.trim();
-       const archFoto = document.getElementById('foto-global').files[0];
-       const archAudio = document.getElementById('audio-global').files[0];
-       if (!texto && !archFoto && !archAudio) {
-         estado.textContent = "⚠️ Escribe algo o selecciona un archivo";
-         estado.className = "text-xs text-center text-amber-600";
-         return;
-       }
-       btn.disabled = true;
-       btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
-       try {
-         let urlFoto = null, urlAudio = null;
-         const cldName = document.getElementById('cfg-cld-name').value.trim() || APP_CONFIG.cloudinary.cloudName;
-         const cldPreset = document.getElementById('cfg-cld-preset').value.trim() || APP_CONFIG.cloudinary.uploadPreset;
-         if(archFoto){
-           const fd = new FormData(); fd.append('file',archFoto); fd.append('upload_preset',cldPreset);
-           const res = await fetch(`https://api.cloudinary.com/v1_1/${cldName}/image/upload`, {method:'POST',body:fd});
-           urlFoto = (await res.json()).secure_url;
-         }
-         if(archAudio){
-           const fd = new FormData(); fd.append('file',archAudio); fd.append('upload_preset',cldPreset);
-           const res = await fetch(`https://api.cloudinary.com/v1_1/${cldName}/video/upload`, {method:'POST',body:fd});
-           urlAudio = (await res.json()).secure_url;
-         }
-         const usuarios = await db.collection('usuarios').get();
-         let cont = 0;
-         for(const u of usuarios.docs){
-           await db.collection('usuarios').doc(u.id).collection('chat').add({
-             sender:'bot', text:texto, foto:urlFoto, audio:urlAudio, fecha:firebase.firestore.FieldValue.serverTimestamp()
-           });
-           if(urlFoto || urlAudio){
-             await db.collection('usuarios').doc(u.id).collection('galeria').add({
-               tipo: urlFoto ? 'imagen' : 'audio', url: urlFoto||urlAudio, descripcion:texto||'Un detalle para ti', fecha:firebase.firestore.FieldValue.serverTimestamp()
-             });
-           }
-           cont++;
-           if(cont%5===0) estado.textContent = `📨 Enviados: ${cont} de ${usuarios.size}`;
-         }
-         estado.textContent = `✅ ¡Listo! Se envió a ${cont} usuarios`;
-         estado.className = "text-xs text-center text-emerald-600";
-         document.getElementById('mensaje-global').value = '';
-       } catch(e){
-         estado.textContent = `❌ Error: ${e.message}`;
-         estado.className = "text-xs text-center text-red-600";
-       } finally {
-         btn.disabled = false;
-         btn.innerHTML = '<i class="fas fa-paper-plane"></i> Enviar a Todos';
-         setTimeout(()=>estado.classList.add('hidden'), 8000);
+        // Solo agregamos la imagen si se subió una nueva
+         if(urlPerfil) datosAGuardar.fotoPerfilSofia = urlPerfil;
+         else datosAGuardar.fotoPerfilSofia = firebase.firestore.FieldValue.delete();
+         if(urlFondo) datosAGuardar.fondoChatSofia = urlFondo;
+         else datosAGuardar.fondoChatSofia = firebase.firestore.FieldValue.delete();
+         await docConfig.set(datosAGuardar, {merge:true});
+         alert("✅ ¡Perfecto! Datos e imágenes de Sofía guardados correctamente");
+       } catch(e) { 
+         console.error(e);
+         alert("❌ No se pudo guardar: " + e.message); 
        }
      }
-     function cerrarSesion(){ location.reload(); }
-   </script>
- </body>
+     async function calcularEstadisticas() {
+       try {
+         const snap = await db.collection('usuarios').get();
+         let total = snap.size, premium = 0, sumaDias = 0, totalMsgs = 0;
+         for(let u of snap.docs){
+           const d = u.data();
+           if(d.suscripcion && d.suscripcion !== 'ninguna') premium++;
+           if(d.fechaInicio) sumaDias += Math.floor((Date.now() - d.fechaInicio.toDate())/(86400000));
+           const c = await db.collection('usuarios').doc(u.id).collection('chat').count().get();
+           totalMsgs += c.data().count;
+         }
+         document.getElementById('stat-users').innerText = total;
+         document.getElementById('stat-premium').innerText = premium;
+         document.getElementById('stat-days').innerText = total ? Math.round(sumaDias/total) : 0;
+         document.getElementById('stat-msgs').innerText = totalMsgs;
+       } catch(e){}
+     }
+     async function guardarConfiguracionEleven(){
+       await docConfig.set({
+         elevenKey: document.getElementById('cfg-eleven-key').value.trim(),
+         elevenVoiceId: document.getElementById('cfg-eleven-voice').value.trim(),
+         elevenModel: document.getElementById('cfg-eleven-model').value,
+         elevenStability: parseFloat(document.getElementById('cfg-eleven-stability').value),
+         elevenSimilarity: parseFloat(document.getElementById('cfg-eleven-similarity').value),
+         elevenSpeed: parseFloat(document.getElementById('cfg-eleven-speed').value)
+       }, {merge:true});
+       alert("✅ Configuración de voz guardada");
+     }
+     async function guardarConfiguracionIA(){
+       await docConfig.set({apiKey: document.getElementById('cfg-api-key').value.trim()}, {merge:true});
+       alert("✅ Clave de IA guardada");
+     }
+     async function guardarConfiguracionCloudinary(){
+       const nom = document.getElementById('cfg-cld-name').value.trim();
+       const preset = document.getElementById('cfg-cld-preset').value.trim();
+       if(!nom || !preset) { alert("Escribe ambos datos por favor"); return; }
+       await docConfig.set({
+         cloudinaryName: nom,
+         cloudinaryPreset: preset
+       }, {merge:true});
+       alert("✅ Datos de Cloudinary guardados, ya puedes subir imágenes");
+     }
+     function guardarContrasenaAdmin(){
+       const nueva = document.getElementById('cfg-admin-pass').value.trim();
+       if(!nueva) { alert("Escribe la contraseña"); return; }
+       localStorage.setItem('admin_pass', nueva);
+       alert("Recuerda también cambiarla en tu archivo config.js ✅");
+     }
+     async function enviarATodos() {
+        const btn = document.getElementById('btn-enviar-todos');
+        const estado = document.getElementById('estado-envio');
+        estado.classList.remove('hidden');
+        
+        const texto = document.getElementById('mensaje-global').value.trim();
+        const archFoto = document.getElementById('foto-global').files[0];
+        const archAudio = document.getElementById('audio-global').files[0];
+        if (!texto && !archFoto && !archAudio) {
+          estado.textContent = "⚠️ Escribe algo o selecciona un archivo";
+          estado.className = "text-xs text-center text-amber-600";
+          return;
+        }
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
+        try {
+          let urlFoto = null, urlAudio = null;
+          
+          let cldName = document.getElementById('cfg-cld-name').value.trim();
+          let cldPreset = document.getElementById('cfg-cld-preset').value.trim();
+          if(!cldName || !cldPreset){
+            const doc = await docConfig.get();
+            if(doc.exists){ cldName = doc.data().cloudinaryName; cldPreset = doc.data().cloudinaryPreset; }
+          }
+          if(!cldName || !cldPreset) throw new Error("Configura primero Cloudinary");
+          if(archFoto){
+            const fd = new FormData(); fd.append('file',archFoto); fd.append('upload_preset',cldPreset);
+            const res = await fetch(`https://api.cloudinary.com/v1_1/${cldName}/image/upload`, {method:'POST',body:fd});
+            if(!res.ok) throw new Error("Revisa el preset de Cloudinary");
+            urlFoto = (await res.json()).secure_url;
+          }
+          if(archAudio){
+            const fd = new FormData(); fd.append('file',archAudio); fd.append('upload_preset',cldPreset);
+            const res = await fetch(`https://api.cloudinary.com/v1_1/${cldName}/video/upload`, {method:'POST',body:fd});
+            urlAudio = (await res.json()).secure_url;
+          }
+          const usuarios = await db.collection('usuarios').get();
+          let cont = 0;
+          for(const u of usuarios.docs){
+            await db.collection('usuarios').doc(u.id).collection('chat').add({
+              sender:'bot', text:texto, foto:urlFoto, audio:urlAudio, fecha:firebase.firestore.FieldValue.serverTimestamp()
+            });
+            if(urlFoto || urlAudio){
+              await db.collection('usuarios').doc(u.id).collection('galeria').add({
+                tipo: urlFoto ? 'imagen' : 'audio', url: urlFoto||urlAudio, descripcion:texto||'Un detalle para ti', fecha:firebase.firestore.FieldValue.serverTimestamp()
+              });
+            }
+            cont++;
+            if(cont%5===0) estado.textContent = `📨 Enviados: ${cont} de ${usuarios.size}`;
+          }
+          estado.textContent = `✅ ¡Listo! Se envió a ${cont} usuarios`;
+          estado.className = "text-xs text-center text-emerald-600";
+          document.getElementById('mensaje-global').value = '';
+        } catch(e){
+          estado.textContent = `❌ Error: ${e.message}`;
+          estado.className = "text-xs text-center text-red-600";
+        } finally {
+          btn.disabled = false;
+          btn.innerHTML = '<i class="fas fa-paper-plane"></i> Enviar a Todos';
+          setTimeout(()=>estado.classList.add('hidden'), 8000);
+        }
+      }
+      function cerrarSesion(){ location.reload(); }
+    </script>
+  </body>
  </html>
